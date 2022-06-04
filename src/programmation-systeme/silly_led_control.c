@@ -33,6 +33,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/timerfd.h>
+#include <syslog.h>
 
 /*
  * status led - gpioa.10 --> gpio10
@@ -90,6 +91,9 @@ int main(int argc, char* argv[])
 {
     fd_set fd_in, fd_out, fd_except;
 
+    setlogmask(LOG_UPTO(LOG_INFO));
+
+    openlog("log_interval", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
 
     long duty   = 2;     // %
@@ -109,7 +113,7 @@ int main(int argc, char* argv[])
     int tfd = timerfd_create(CLOCK_MONOTONIC, 0);
     struct itimerspec spec = {
         .it_interval = {0, 0},
-        .it_value = {2, time_interval}
+        .it_value = {0, time_interval}
     };
     timerfd_settime(tfd, 0, &spec, NULL);
     printf("Hey 3\n");
@@ -172,27 +176,54 @@ int main(int argc, char* argv[])
             if (FD_ISSET(k1, &fd_except)) {
                 pread(k1, buff, sizeof("1"), 0);
                 printf("K1 = 1\n");
+
+                time_interval -= 100000000;
+
+                syslog(LOG_INFO, "Time interval increased : %d", time_interval);
+
                 //FD_CLR(k1, &fd_except);
                 }
             if (FD_ISSET(k2, &fd_except)) {
                 pread(k2, buff, sizeof("1"), 0);
                 printf("K2 pressed\n");
+
+                time_interval = period / 2;
+
+                syslog(LOG_INFO, "Time interval reset : %d", time_interval);
+
                 //FD_CLR(k2, &fd_except);
                 }
             if (FD_ISSET(k3, &fd_except)) {
                 pread(k3, buff, sizeof("1"), 0);
                 printf("K3 pressed\n");
+
+                time_interval += 100000000;
+
+                syslog(LOG_INFO, "Time interval decreased : %d", time_interval);
+
                 //FD_CLR(k3, &fd_except);
             }
             if (FD_ISSET(tfd, &fd_in)) {
                 pread(tfd, buff, 8, 0);
-                printf("timer occurred\n");
+                printf("timer occurred %d\n", time_interval);
+                
+                spec.it_value.tv_nsec = time_interval;
+
                 timerfd_settime(tfd, 0, &spec, NULL);
+
+                // led
+                k  = (k + 1) % 2;
+                if (k == 0)
+                    pwrite(led, "1", sizeof("1"), 0);
+                else
+                    pwrite(led, "0", sizeof("0"), 0);
+
                 //FD_CLR(k3, &fd_except);
             }
         } 
-
     }
+
+    closelog();
 
     return 0;
 }
