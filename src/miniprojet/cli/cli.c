@@ -35,11 +35,12 @@
     }
     printf("The Socket is now connected\n");
 
-    sprintf(buffer,"frequency 4\n");
-    //sleep(5);
+    sprintf(buffer,"frequency:4");
+    sleep(5);
 
     /* Next step: send some data */
     ret_val = send(fd,buffer, sizeof(buffer), 0);
+    //write(fd, buffer, strlen(buffer)); 
     printf("Successfully sent data (len %d bytes): %s\n", 
                 ret_val, buffer);
 

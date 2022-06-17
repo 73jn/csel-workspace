@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
     int listenfd = 0, connfd = 0;
     struct sockaddr_in serv_addr; 
 
-    char sendBuff[1025];
+    char sendBuff[1024];
     char identifier[30];
     int value_recv = 0;
     time_t ticks; 
@@ -243,6 +243,8 @@ int main(int argc, char* argv[])
     int largest_fd = (k1 > k2) ? k1 : k2;
     largest_fd = (largest_fd > k3) ? largest_fd : k3;
     largest_fd = (largest_fd > tfd) ? largest_fd : tfd;
+    largest_fd = (largest_fd > connfd) ? largest_fd : connfd;
+    largest_fd = (largest_fd > listenfd) ? largest_fd : listenfd;
 
     struct timespec t1;
     clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -279,6 +281,13 @@ int main(int argc, char* argv[])
             FD_SET(connfd, &fd_in);
             syslog (LOG_INFO, "socket select\n");
         }
+        //update largest fd
+        largest_fd = (k1 > k2) ? k1 : k2;
+        largest_fd = (largest_fd > k3) ? largest_fd : k3;
+        largest_fd = (largest_fd > tfd) ? largest_fd : tfd;
+        largest_fd = (largest_fd > connfd) ? largest_fd : connfd;
+        largest_fd = (largest_fd > listenfd) ? largest_fd : listenfd;
+
         int ret = select (largest_fd+1, &fd_in, &fd_out, &fd_except, NULL);
         // check if select actually succeed
         if (ret == (-1)) {
@@ -369,11 +378,12 @@ int main(int argc, char* argv[])
             if (FD_ISSET(listenfd, &fd_in)) {
                 connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
                 syslog (LOG_INFO, "socket connection\n");
+                syslog (LOG_INFO, "%d", connfd);
             }
             if (FD_ISSET(connfd, &fd_in)) {
                 syslog (LOG_INFO, "socket recv\n");
-                ret_val = recv(connfd, sendBuff, 1025, 0);
-                
+                ret_val = recv(connfd, sendBuff, 1024, 0);
+                syslog (LOG_INFO, "data received\n");
 
                 if (ret_val == 0) {
                     //printf("Closing connection for fd:%d\n", all_connections[i]);
@@ -384,21 +394,24 @@ int main(int argc, char* argv[])
                 if (ret_val > 0) { 
                     //printf("Received data (len %d bytes, fd: %d): %s\n", 
                     //    ret_val, all_connections[i], buf);
-                    sscanf(sendBuff, "%s %d", identifier, value_recv);
                     syslog (LOG_INFO, "socket msg\n");
-
+                    syslog (LOG_INFO, "%s", sendBuff);
+                    sscanf(sendBuff, "%[^:]:%d", identifier, &value_recv);
+                    syslog (LOG_INFO, "%s", identifier);
+                    syslog (LOG_INFO, "%d", value_recv);
                     if(strcmp(identifier, "frequency")== 0){
+                        syslog (LOG_INFO, "CHANGE FREQUENCY");
                         sprintf(buff, "%d\n", value_recv);
                         pwrite(fd_frequency, buff, strlen(buff), 0);
                     }
                     else if (strcmp(identifier, "auto_mode")== 0){
+                        syslog (LOG_INFO, "CHANGE MODE");
                         sprintf(buff, "%d\n", value_recv);
                         pwrite(fd_auto_mode, buff, strlen(buff), 0);
                     }
                 } 
                 if (ret_val == -1) {
-                    //printf("recv() failed for fd: %d [%s]\n", 
-                    //    all_connections[i], strerror(errno));
+                    syslog (LOG_INFO, "failed\n");
                     break;
                 }
             }
