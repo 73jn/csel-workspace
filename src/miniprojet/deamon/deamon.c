@@ -62,6 +62,10 @@
 #define GPIO_K2     "/sys/class/gpio/gpio2"
 #define GPIO_K3     "/sys/class/gpio/gpio3"
 
+#define TEMPERATURE     "/sys/class/miniproject/management/temperature"
+#define FREQUENCY     "/sys/class/miniproject/management/frequency"
+#define AUTO_MODE     "/sys/class/miniproject/management/auto_mode"
+
 #define UNUSED(x) (void)(x)
 
 static int signal_catched = 0; 
@@ -211,23 +215,21 @@ int main(int argc, char* argv[])
     char buff[10] = "";
     int k = 0;
 
+//#define TEMPERATURE     "/sys/class/miniproject/management/temperature"
+//#define FREQUENCY     "/sys/class/miniproject/management/frequency"
+//#define AUTO_MODE     "/sys/class/miniproject/management/auto_mode"
+
+    // module
+    int fd_temperature = open(TEMPERATURE, O_RDONLY);
+    int fd_frequency = open(FREQUENCY, O_RDWR);
+    int fd_auto_mode = open(AUTO_MODE, O_RDWR);
 
 
     ssd1306_init();
 
-    ssd1306_set_position (0,0);
-    ssd1306_puts("CSEL1a - SP.07");
-    ssd1306_set_position (0,1);
-    ssd1306_puts("  Demo - SW");
-    ssd1306_set_position (0,2);
-    ssd1306_puts("--------------");
+    int temp_val = 0;
 
-    ssd1306_set_position (0,3);
-    ssd1306_puts("Temp: 35'C");
-    ssd1306_set_position (0,4);
-    ssd1306_puts("Freq: 1Hz");
-    ssd1306_set_position (0,5);
-    ssd1306_puts("Duty: 50%");
+
 	//Infinity loop
 	while(1){
         FD_ZERO(&fd_in);
@@ -247,23 +249,80 @@ int main(int argc, char* argv[])
         } else {
             if (FD_ISSET(k1, &fd_except)) {
                 pread(k1, buff, sizeof("1"), 0);
-                printf("K1 = 1\n");
-                syslog(LOG_INFO, "Time interval increased : %d", time_interval);
+                printf("K1 = 1\n"); // increase
+                pread(fd_frequency, buff, 8, 0);
+
+                temp_val = strtol(buff, 0, 10);
+
+                // modify value
+                temp_val = temp_val+1;
+
+                sprintf(buff, "%d\n", temp_val);
+
+                pwrite(fd_frequency, buff, strlen(buff), 0);
                 }
             if (FD_ISSET(k2, &fd_except)) {
                 pread(k2, buff, sizeof("1"), 0);
-                printf("K2 pressed\n");
-                syslog(LOG_INFO, "Time interval reset : %d", time_interval);
+                printf("K2 pressed\n"); //DECREASE
+                pread(fd_frequency, buff, 8, 0);
+
+                temp_val = strtol(buff, 0, 10);
+
+                // modify value
+                temp_val = temp_val-1;
+
+                sprintf(buff, "%d\n", temp_val);
+
+                pwrite(fd_frequency, buff, strlen(buff), 0);
                 }
             if (FD_ISSET(k3, &fd_except)) {
                 pread(k3, buff, sizeof("1"), 0);
                 printf("K3 pressed\n");
-                syslog(LOG_INFO, "Time interval decreased : %d", time_interval);
+                pread(fd_auto_mode, buff, 8, 0);
+                
+                temp_val = strtol(buff, 0, 10);
+
+                // modify value
+                temp_val = temp_val? 0:1;
+
+                sprintf(buff, "%d\n", temp_val);
+                
+
+                pwrite(fd_auto_mode, buff, strlen(buff), 0);
             }
             if (FD_ISSET(tfd, &fd_in)) {
                 pread(tfd, buff, 8, 0);
                 printf("timer occurred %d\n", time_interval);
                 //spec.it_value.tv_nsec = time_interval;
+
+
+                //i2c screen
+                ssd1306_set_position (0,0);
+                ssd1306_puts("CSEL1a - SP.07");
+                ssd1306_set_position (0,1);
+                ssd1306_puts("  Miniproject");
+                ssd1306_set_position (0,2);
+                ssd1306_puts("--------------");
+
+                ssd1306_set_position (0,3);
+                ssd1306_puts("Temp: ");
+                memset(buff, 0, sizeof(buff));
+                pread(fd_temperature, buff, 8, 0);
+                ssd1306_puts(buff);
+                ssd1306_puts("'C");
+                ssd1306_set_position (0,4);
+                ssd1306_puts("Freq: ");
+                memset(buff, 0, sizeof(buff));
+                pread(fd_frequency, buff, 8, 0);
+                ssd1306_puts(buff);
+                ssd1306_puts("Hz");
+                ssd1306_set_position (0,5);
+                ssd1306_puts("Auto: ");
+                memset(buff, 0, sizeof(buff));
+                pread(fd_auto_mode, buff, 8, 0);
+                ssd1306_puts(buff);
+
+
                 timerfd_settime(tfd, 0, &spec, NULL);
 				syslog(LOG_INFO, "Timer occured.\n");
             }
