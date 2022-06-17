@@ -1,0 +1,1 @@
+cmd_/workspace/src/miniprojet/module/mymodule.o := /buildroot/output/host/usr/bin/aarch64-buildroot-linux-gnu-ld -EL  -maarch64elf   -r -o /workspace/src/miniprojet/module/mymodule.o /workspace/src/miniprojet/module/skeleton.o

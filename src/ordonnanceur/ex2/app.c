@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     int *pointer = (int *)malloc(MEM_TO_ALLOC);
 
     if(pointer != NULL){
-        printf("Allocation works %d\n", pointer);
+        printf("Allocation works %d\n", sizeof(pointer));
         free(pointer);
     }
     else{
