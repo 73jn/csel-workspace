@@ -51,6 +51,7 @@
 #include <sys/time.h>
 #include <sys/timerfd.h>
 #include <syslog.h>
+#include "ssd1306.h"
 
 #define GPIO_EXPORT   "/sys/class/gpio/export"
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
@@ -175,31 +176,6 @@ int main(int argc, char* argv[])
 	// 9. option: open syslog for message logging
 	openlog (NULL, LOG_NDELAY | LOG_PID, LOG_DAEMON); 
 	syslog (LOG_INFO, "Daemon has started...");
- 
-	// 10. option: get effective user and group id for appropriate's one
-	/*
-	struct passwd* pwd = getpwnam ("daemon");
-	if (pwd == 0) {
-		syslog (LOG_ERR, "ERROR while reading daemon password file entry");
-		exit (1);
-	}
-
-	// 11. option: change root directory
-	if (chroot (".") == -1) {
-		syslog (LOG_ERR, "ERROR while changing to new root directory");
-		exit (1);
-	}
-
-	// 12. option: change effective user and group id for appropriate's one
-	if (setegid (pwd->pw_gid) == -1) {
-		syslog (LOG_ERR, "ERROR while setting new effective group id");
-		exit (1);
-	}
-	if (seteuid (pwd->pw_uid) == -1) {
-		syslog (LOG_ERR, "ERROR while setting new effective user id");
-		exit (1);
-	}
-	*/
 
 	// 13. implement daemon body...
 
@@ -234,6 +210,24 @@ int main(int argc, char* argv[])
     clock_gettime(CLOCK_MONOTONIC, &t1);
     char buff[10] = "";
     int k = 0;
+
+
+
+    ssd1306_init();
+
+    ssd1306_set_position (0,0);
+    ssd1306_puts("CSEL1a - SP.07");
+    ssd1306_set_position (0,1);
+    ssd1306_puts("  Demo - SW");
+    ssd1306_set_position (0,2);
+    ssd1306_puts("--------------");
+
+    ssd1306_set_position (0,3);
+    ssd1306_puts("Temp: 35'C");
+    ssd1306_set_position (0,4);
+    ssd1306_puts("Freq: 1Hz");
+    ssd1306_set_position (0,5);
+    ssd1306_puts("Duty: 50%");
 	//Infinity loop
 	while(1){
         FD_ZERO(&fd_in);
