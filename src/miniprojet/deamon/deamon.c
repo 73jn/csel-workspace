@@ -53,6 +53,17 @@
 #include <syslog.h>
 #include "ssd1306.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <time.h> 
+
 #define GPIO_EXPORT   "/sys/class/gpio/export"
 #define GPIO_UNEXPORT "/sys/class/gpio/unexport"
 #define K1            "0"
@@ -190,6 +201,29 @@ int main(int argc, char* argv[])
 
     openlog("log_interval", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
+    // socket 
+    int listenfd = 0, connfd = 0;
+    struct sockaddr_in serv_addr; 
+
+    char sendBuff[1025];
+    char identifier[30];
+    int value_recv = 0;
+    time_t ticks; 
+    int ret_val;
+
+    listenfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    memset(&serv_addr, '0', sizeof(serv_addr));
+    memset(sendBuff, '0', sizeof(sendBuff));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_port = htons(5000); 
+
+    bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)); 
+    listen(listenfd, 5);
+
+
     int k1 = open_gpio(K1, "in", GPIO_K1);
     int k2 = open_gpio(K2, "in", GPIO_K2);
     int k3 = open_gpio(K3, "in", GPIO_K3);
@@ -239,6 +273,12 @@ int main(int argc, char* argv[])
         FD_SET(k2, &fd_except);
         FD_SET(k3, &fd_except);
         FD_SET(tfd, &fd_in);
+        FD_SET(listenfd, &fd_in);
+
+        if (connfd != 0){
+            FD_SET(connfd, &fd_in);
+            syslog (LOG_INFO, "socket select\n");
+        }
         int ret = select (largest_fd+1, &fd_in, &fd_out, &fd_except, NULL);
         // check if select actually succeed
         if (ret == (-1)) {
@@ -292,7 +332,7 @@ int main(int argc, char* argv[])
             }
             if (FD_ISSET(tfd, &fd_in)) {
                 pread(tfd, buff, 8, 0);
-                printf("timer occurred %d\n", time_interval);
+                //printf("timer occurred %d\n", time_interval);
                 //spec.it_value.tv_nsec = time_interval;
 
 
@@ -324,7 +364,43 @@ int main(int argc, char* argv[])
 
 
                 timerfd_settime(tfd, 0, &spec, NULL);
-				syslog(LOG_INFO, "Timer occured.\n");
+				//syslog(LOG_INFO, "Timer occured.\n");
+            }
+            if (FD_ISSET(listenfd, &fd_in)) {
+                connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+                syslog (LOG_INFO, "socket connection\n");
+            }
+            if (FD_ISSET(connfd, &fd_in)) {
+                syslog (LOG_INFO, "socket recv\n");
+                ret_val = recv(connfd, sendBuff, 1025, 0);
+                
+
+                if (ret_val == 0) {
+                    //printf("Closing connection for fd:%d\n", all_connections[i]);
+                    syslog (LOG_INFO, "socket close\n");
+                    close(connfd);
+                    connfd = 0;
+                } 
+                if (ret_val > 0) { 
+                    //printf("Received data (len %d bytes, fd: %d): %s\n", 
+                    //    ret_val, all_connections[i], buf);
+                    sscanf(sendBuff, "%s %d", identifier, value_recv);
+                    syslog (LOG_INFO, "socket msg\n");
+
+                    if(strcmp(identifier, "frequency")== 0){
+                        sprintf(buff, "%d\n", value_recv);
+                        pwrite(fd_frequency, buff, strlen(buff), 0);
+                    }
+                    else if (strcmp(identifier, "auto_mode")== 0){
+                        sprintf(buff, "%d\n", value_recv);
+                        pwrite(fd_auto_mode, buff, strlen(buff), 0);
+                    }
+                } 
+                if (ret_val == -1) {
+                    //printf("recv() failed for fd: %d [%s]\n", 
+                    //    all_connections[i], strerror(errno));
+                    break;
+                }
             }
         } 
 	}
